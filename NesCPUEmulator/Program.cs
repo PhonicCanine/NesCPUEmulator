@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 static class extensions
 {
@@ -119,6 +120,19 @@ namespace NesCPUEmulator
         //16408 to 16415 disabled functionality
 
         //16416 to 65535 cartridge space
+
+        public memory()
+        {
+
+        }
+
+        public memory(byte[] program)
+        {
+            for (var i = 0; i < program.Length; i++)
+            {
+                this[(ushort)i] = program[i];
+            }
+        }
 
         byte[] addresses = new byte[51206];
 
@@ -247,6 +261,8 @@ namespace NesCPUEmulator
 
         private NesCPU states;
 
+        public bool CPUActive = true;
+
         public CPU()
         {
             states.P = 0;
@@ -256,9 +272,19 @@ namespace NesCPUEmulator
             states.Y = 0;
         }
 
+        public CPU(ref memory MemorySpace)
+        {
+            Memory = MemorySpace;
+            states.P = 0;
+            states.PC = 0;
+            states.SP = 0;
+            states.X = 0;
+            states.Y = 0;
+        }
+
         private int nops = 0;
 
-        enum ops
+        public enum ops
         {
             BRK = 0,
             ORA = 1,
@@ -341,7 +367,7 @@ namespace NesCPUEmulator
             0 , 1 , 2 , 3 , 4 , 1 , 5 , 3 , 6 , 1 , 5 , 7 , 4 , 1 , 5 , 3 , 8 , 1 , 2 , 3 , 4 , 1 , 5 , 3 , 9 , 1 , 4 , 3 , 4 , 1 , 5 , 3 , 10 , 11 , 2 , 12 , 13 , 11 , 14 , 12 , 15 , 11 , 14 , 7 , 13 , 11 , 14 , 12 , 16 , 11 , 2 , 12 , 4 , 11 , 14 , 12 , 17 , 11 , 4 , 12 , 4 , 11 , 14 , 12 , 18 , 19 , 2 , 20 , 4 , 19 , 21 , 20 , 22 , 19 , 21 , 23 , 24 , 19 , 21 , 20 , 25 , 19 , 2 , 20 , 4 , 19 , 21 , 20 , 26 , 19 , 4 , 20 , 4 , 19 , 21 , 20 , 27 , 28 , 2 , 29 , 4 , 28 , 30 , 29 , 31 , 28 , 30 , 32 , 24 , 28 , 30 , 29 , 33 , 28 , 2 , 29 , 4 , 28 , 30 , 29 , 34 , 28 , 4 , 29 , 4 , 28 , 30 , 29 , 4 , 35 , 4 , 36 , 37 , 35 , 40 , 36 , 38 , 4 , 39 , 41 , 37 , 35 , 40 , 36 , 42 , 35 , 2 , 43 , 37 , 35 , 40 , 36 , 44 , 35 , 45 , 46 , 47 , 35 , 48 , 43 , 49 , 50 , 51 , 52 , 49 , 50 , 51 , 52 , 53 , 50 , 56 , 52 , 49 , 50 , 51 , 52 , 54 , 50 , 2 , 52 , 49 , 50 , 51 , 52 , 55 , 50 , 57 , 58 , 49 , 50 , 51 , 52 , 59 , 60 , 4 , 61 , 59 , 60 , 62 , 61 , 63 , 60 , 64 , 65 , 59 , 60 , 62 , 61 , 66 , 60 , 2 , 61 , 4 , 60 , 62 , 61 , 67 , 60 , 4 , 61 , 4 , 60 , 62 , 61 , 68 , 69 , 4 , 70 , 68 , 69 , 71 , 70 , 72 , 69 , 4 , 69 , 68 , 69 , 71 , 70 , 73 , 69 , 2 , 70 , 4 , 69 , 71 , 70 , 74 , 69 , 4 , 70 , 4 , 69 , 71 , 70
         };
 
-        enum addressingMode
+        public enum addressingMode
         {
             None = 0,
             Relative = 1,
@@ -414,16 +440,28 @@ namespace NesCPUEmulator
 
         public void runProgram(byte[] program)
         {
+            CPUActive = true;
+
             for (var i = 0; i < program.Length; i++)
             {
                 Memory[(ushort)i] = program[i];
             }
 
-            while (true)
+            while (true && CPUActive)
             {
                 runInstructionAt(states.PC);
             }
 
+        }
+
+        public void runEntireProgram(ushort from = 0)
+        {
+            CPUActive = true;
+            states.PC = from;
+            while (CPUActive)
+            {
+                runInstructionAt(states.PC);
+            }
         }
 
         public void runInstructionAt(ushort memaddress)
@@ -619,6 +657,9 @@ namespace NesCPUEmulator
                 case ops.SED:
                     incrementProgramCounter(addressingMode);
                     SED();
+                    break;
+                case ops.STP:
+                    CPUActive = false;
                     break;
                 case ops.ROL:
                     incrementProgramCounter(addressingMode);
@@ -1766,6 +1807,31 @@ namespace NesCPUEmulator
 
     }
 
+    class PPU
+    {
+        private memory Memory = new memory();
+        public PPU(ref memory m)
+        {
+            Memory = m;
+        }
+
+    }
+
+    class NES
+    {
+        public CPU Processor { get; set; }
+        public PPU PictureProcessor { get; set; }
+        public memory SharedMemory { get; set; }
+
+        public NES()
+        {
+            memory m = new memory();
+            SharedMemory = m;
+            Processor = new CPU(ref m);
+            PictureProcessor = new PPU(ref m);
+        }
+    }
+
     class Tests
     {
         public static void testMemoryAddressing()
@@ -1818,27 +1884,56 @@ namespace NesCPUEmulator
         }
     }
 
+    class Compiler
+    {
+
+    }
+
+    class Instruction
+    {
+        CPU.ops opname { get; set; }
+        CPU.addressingMode address { get; set; }
+        byte[] args { get; set; }
+        public Instruction(CPU.ops op, CPU.addressingMode addr, List<byte> arg = null)
+        {
+            opname = op;
+            address = addr;
+            if (arg == null)
+                args = arg.ToArray();
+        }
+    }
+
     class Program
     {
         static void Main(string[] args)
         {
             Tests.testMemoryAddressing();
-            //Console.ReadLine();
 
+            /*
             byteex a = 0;
-            CPU cpu = new CPU();
             a[4] = 1;
             Console.WriteLine(a);
             a[4] = 0;
             Console.WriteLine(a);
             a.flipbit(3);
+            */
 
+            //Put 60 in the accumulator, then add 30, then store in memory address 7, then stop the program
+            memory memoryShare = new memory(new byte[] {
+                0xa9, 0x3c,
+                0x69, 0x1e,
+                0x85, 0x07,
+                0x02 });
 
-            cpu.runProgram(new byte[] { 0xa9, 0x3c, 0x69, 0x1e });
+            CPU cpu = new CPU(ref memoryShare);
 
-            Console.WriteLine(a);
+            cpu.runEntireProgram();
+
+            Console.WriteLine(memoryShare[7]);
+
+            //Console.WriteLine(a);
+            
             Console.ReadLine();
-            Console.WriteLine("Hello World!");
         }
     }
 }
